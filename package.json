@@ -1,0 +1,27 @@
+{
+  "name": "deploy-webhook",
+  "version": "1.0.0",
+  "description": "## Descripción General",
+  "main": "webhook.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/japentaca/deploy-webhook.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/japentaca/deploy-webhook/issues"
+  },
+  "homepage": "https://github.com/japentaca/deploy-webhook#readme",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "express": "^4.21.2",
+    "node-fetch": "^3.3.2",
+    "pm2": "^6.0.11"
+  }
+}
