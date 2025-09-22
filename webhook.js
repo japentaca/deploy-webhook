@@ -87,10 +87,10 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         // Construir URL de la API para obtener información del artefacto
         const artifactApiUrl = `https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}`;
         console.log(`Obteniendo información del artefacto desde: ${artifactApiUrl}`);
-        
+
         // Obtener información del artefacto
         const artifactResponse = await fetch(artifactApiUrl, { headers });
-        
+
         if (!artifactResponse.ok) {
             if (artifactResponse.status === 401 || artifactResponse.status === 403) {
                 throw new Error(`Error de autenticación al acceder a la API de GitHub: ${artifactResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN tenga permisos para acceder a artefactos.`);
@@ -107,12 +107,12 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         // Obtener URL de descarga del artefacto
         const downloadApiUrl = `https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}/zip`;
         console.log(`Descargando artefacto desde: ${downloadApiUrl}`);
-        
-        const downloadResponse = await fetch(downloadApiUrl, { 
+
+        const downloadResponse = await fetch(downloadApiUrl, {
             headers,
             redirect: 'manual' // GitHub devuelve un redirect con la URL temporal
         });
-        
+
         if (!downloadResponse.ok && downloadResponse.status !== 302) {
             if (downloadResponse.status === 401 || downloadResponse.status === 403) {
                 throw new Error(`Error de autenticación al descargar artefacto: ${downloadResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN esté configurado correctamente.`);
@@ -127,10 +127,10 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         }
 
         console.log('Descargando artefacto desde URL temporal...');
-        
+
         // Descargar el artefacto usando la URL temporal
         const response = await fetch(downloadUrl);
-        
+
         if (!response.ok) {
             throw new Error(`Error al descargar artefacto desde URL temporal: ${response.status} ${response.statusText}`);
         }
@@ -159,8 +159,8 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         // Verificar que es un archivo ZIP válido leyendo los primeros bytes
         const fileHeader = await fs.readFile(tempFile, { start: 0, end: 3 });
         const zipSignature = fileHeader.toString('hex');
-        console.log(`Signatura del archivo: ${zipSignature}`);
-        
+        //console.log(`Signatura del archivo: ${zipSignature}`);
+
         // Verificar signatura ZIP (PK\x03\x04 = 504b0304 en hex)
         if (!zipSignature.startsWith('504b')) {
             console.error('El archivo descargado no parece ser un ZIP válido');
@@ -182,7 +182,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
             }
         } catch (unzipError) {
             console.error('Error durante la extracción:', unzipError.message);
-            
+
             // Intentar obtener información básica del ZIP para diagnóstico
             try {
                 const { stdout: listOutput } = await execAsync(`unzip -l "${tempFile}"`);
@@ -191,7 +191,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
             } catch (listError) {
                 console.error('No se pudo obtener información del ZIP');
             }
-            
+
             throw new Error(`Error al extraer el archivo ZIP: ${unzipError.message}`);
         }
 
@@ -341,14 +341,14 @@ async function deployBackend(environment, projectUrl) {
 // Ruta para despliegue de frontend
 app.post('/frontend', async (req, res) => {
     try {
-        const { 
-            environment, 
-            artifact_name, 
-            artifact_id, 
-            repository, 
-            run_id, 
-            github_token_required, 
-            token 
+        const {
+            environment,
+            artifact_name,
+            artifact_id,
+            repository,
+            run_id,
+            github_token_required,
+            token
         } = req.body;
 
         // Validar token
@@ -358,8 +358,8 @@ app.post('/frontend', async (req, res) => {
 
         // Validar parámetros requeridos
         if (!environment || !artifact_id || !repository) {
-            return res.status(400).json({ 
-                error: 'Parámetros environment, artifact_id y repository son requeridos' 
+            return res.status(400).json({
+                error: 'Parámetros environment, artifact_id y repository son requeridos'
             });
         }
 
@@ -370,8 +370,8 @@ app.post('/frontend', async (req, res) => {
 
         // Validar que se requiere token de GitHub
         if (github_token_required !== true) {
-            return res.status(400).json({ 
-                error: 'github_token_required debe ser true para este tipo de despliegue' 
+            return res.status(400).json({
+                error: 'github_token_required debe ser true para este tipo de despliegue'
             });
         }
 
