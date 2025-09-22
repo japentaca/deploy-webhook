@@ -69,11 +69,11 @@ function validateToken(token) {
 async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
     try {
         console.log(`Descargando artefacto desde: ${artifactUrl}`);
-        
+
         // Preparar cabeceras de autenticación para GitHub
         const headers = {};
         const githubToken = process.env.GITHUB_ACCESS_TOKEN;
-        
+
         if (githubToken) {
             headers['Authorization'] = `token ${githubToken}`;
             headers['Accept'] = 'application/vnd.github.v3+json';
@@ -81,7 +81,7 @@ async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
         } else {
             console.log('No se encontró GITHUB_ACCESS_TOKEN, intentando descarga sin autenticación');
         }
-        
+
         // Descargar el artefacto
         const response = await fetch(artifactUrl, { headers });
         if (!response.ok) {
@@ -94,9 +94,9 @@ async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
         // Crear directorio temporal
         const tempDir = path.join(__dirname, 'temp');
         await fs.mkdir(tempDir, { recursive: true });
-        
+
         const tempFile = path.join(tempDir, 'artifact.zip');
-        
+
         // Guardar el archivo
         const buffer = await response.buffer();
         await fs.writeFile(tempFile, buffer);
@@ -122,8 +122,8 @@ async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
 // Función para clonar repositorio y configurar backend
 async function deployBackend(environment, projectUrl) {
     try {
-        const deployPath = environment === 'tst' 
-            ? process.env.DEPLOY_BACKEND_PATH_TST 
+        const deployPath = environment === 'tst'
+            ? process.env.DEPLOY_BACKEND_PATH_TST
             : process.env.DEPLOY_BACKEND_PATH_PRD;
 
         if (!deployPath) {
@@ -135,7 +135,7 @@ async function deployBackend(environment, projectUrl) {
 
         // Crear directorio temporal para clonar el monorepo
         const tempDir = path.join(os.tmpdir(), `deploy-${Date.now()}`);
-        
+
         // Crear directorio padre del destino si no existe
         const parentDir = path.dirname(deployPath);
         await fs.mkdir(parentDir, { recursive: true });
@@ -154,7 +154,7 @@ async function deployBackend(environment, projectUrl) {
             // Preparar URL con token para repositorios privados
             const githubToken = process.env.GITHUB_ACCESS_TOKEN;
             let cloneUrl = projectUrl;
-            
+
             if (githubToken && projectUrl.includes('github.com')) {
                 // Convertir URL de GitHub para usar token de acceso
                 // De: https://github.com/usuario/repo.git
@@ -162,7 +162,7 @@ async function deployBackend(environment, projectUrl) {
                 cloneUrl = projectUrl.replace('https://github.com/', `https://${githubToken}@github.com/`);
                 console.log('Usando GitHub token para clonar repositorio privado');
             }
-            
+
             // Clonar monorepo en directorio temporal
             console.log(`Clonando monorepo en directorio temporal: ${tempDir}`);
             await execAsync(`git clone ${cloneUrl} "${tempDir}"`);
@@ -201,7 +201,7 @@ async function deployBackend(environment, projectUrl) {
 
             // Reiniciar proceso con PM2
             const processName = environment === 'tst' ? 'tst_backend' : 'prd_backend';
-            
+
             const pm2Result = await new Promise((resolve, reject) => {
                 pm2.connect((err) => {
                     if (err) {
@@ -212,7 +212,7 @@ async function deployBackend(environment, projectUrl) {
 
                     pm2.restart(processName, (err) => {
                         pm2.disconnect();
-                        
+
                         if (err) {
                             console.error(`Error reiniciando proceso ${processName}:`, err);
                             reject(err);
@@ -263,30 +263,30 @@ app.post('/frontend', async (req, res) => {
         }
 
         // Obtener ruta de despliegue
-        const deployPath = environment === 'tst' 
-            ? process.env.DEPLOY_FRONTEND_PATH_TST 
+        const deployPath = environment === 'tst'
+            ? process.env.DEPLOY_FRONTEND_PATH_TST
             : process.env.DEPLOY_FRONTEND_PATH_PRD;
 
         if (!deployPath) {
-            return res.status(500).json({ 
-                error: `Variable de entorno DEPLOY_FRONTEND_PATH_${environment.toUpperCase()} no configurada` 
+            return res.status(500).json({
+                error: `Variable de entorno DEPLOY_FRONTEND_PATH_${environment.toUpperCase()} no configurada`
             });
         }
 
         // Descargar y extraer artefacto
         await downloadAndExtractArtifact(artifact_url, deployPath);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: `Frontend desplegado exitosamente en ambiente ${environment}`,
             path: deployPath
         });
 
     } catch (error) {
         console.error('Error en despliegue de frontend:', error);
-        res.status(500).json({ 
-            error: 'Error interno del servidor', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            details: error.message
         });
     }
 });
@@ -314,24 +314,24 @@ app.post('/backend', async (req, res) => {
         // Desplegar backend
         await deployBackend(environment, project_url);
 
-        res.json({ 
-            success: true, 
-            message: `Backend desplegado exitosamente en ambiente ${environment}` 
+        res.json({
+            success: true,
+            message: `Backend desplegado exitosamente en ambiente ${environment}`
         });
 
     } catch (error) {
         console.error('Error en despliegue de backend:', error);
-        res.status(500).json({ 
-            error: 'Error interno del servidor', 
-            details: error.message 
+        res.status(500).json({
+            error: 'Error interno del servidor',
+            details: error.message
         });
     }
 });
 
 // Ruta de salud del servicio
 app.get('/health', (req, res) => {
-    res.json({ 
-        status: 'ok', 
+    res.json({
+        status: 'ok',
         timestamp: new Date().toISOString(),
         service: 'webhook-deploy-server'
     });
