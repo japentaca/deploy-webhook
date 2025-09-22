@@ -16,6 +16,43 @@ const __dirname = path.dirname(__filename);
 // Cargar variables de entorno
 dotenv.config();
 
+// Función para verificar dependencias del sistema en Debian
+async function checkSystemDependencies() {
+    const requiredCommands = ['unzip', 'git', 'npm'];
+    const missingCommands = [];
+
+    for (const command of requiredCommands) {
+        try {
+            await execAsync(`which ${command}`);
+            console.log(`✓ ${command} está disponible`);
+        } catch (error) {
+            missingCommands.push(command);
+        }
+    }
+
+    if (missingCommands.length > 0) {
+        console.error('Error: Los siguientes comandos son requeridos pero no están instalados:');
+        missingCommands.forEach(command => {
+            console.error(`  - ${command}`);
+        });
+        console.error('\nPara instalar las dependencias faltantes en Debian/Ubuntu, ejecuta:');
+        
+        if (missingCommands.includes('unzip')) {
+            console.error('  sudo apt-get install unzip');
+        }
+        if (missingCommands.includes('git')) {
+            console.error('  sudo apt-get install git');
+        }
+        if (missingCommands.includes('npm')) {
+            console.error('  sudo apt-get install nodejs npm');
+        }
+        
+        process.exit(1);
+    }
+
+    console.log('Verificación de dependencias del sistema completada exitosamente.');
+}
+
 // Función para validar variables de entorno requeridas
 function validateEnvironmentVariables() {
     const requiredVars = [
@@ -48,8 +85,11 @@ function validateEnvironmentVariables() {
     console.log('Validación de variables de entorno completada exitosamente.');
 }
 
-// Validar variables de entorno al inicio
-validateEnvironmentVariables();
+// Verificar dependencias del sistema y validar variables de entorno al inicio
+(async () => {
+    await checkSystemDependencies();
+    validateEnvironmentVariables();
+})();
 
 const execAsync = promisify(exec);
 const app = express();
@@ -149,7 +189,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         await fs.mkdir(destinationPath, { recursive: true });
 
         // Extraer el archivo (asumiendo que es un ZIP)
-        await execAsync(`powershell -Command "Expand-Archive -Path '${tempFile}' -DestinationPath '${destinationPath}' -Force"`);
+        await execAsync(`unzip -o "${tempFile}" -d "${destinationPath}"`);
 
         // Limpiar archivo temporal
         await fs.unlink(tempFile);
