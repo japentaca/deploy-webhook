@@ -65,56 +65,72 @@ function validateToken(token) {
     return token === process.env.DEPLOY_SECRET_TOKEN;
 }
 
-// Función para descargar y extraer artefactos
-async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
+// Función para descargar y extraer artefactos usando artifact_id
+async function downloadAndExtractArtifact(artifactId, repository, destinationPath) {
     try {
-        console.log(`Procesando descarga de artefacto desde: ${artifactUrl}`);
+        console.log(`Procesando descarga de artefacto ID: ${artifactId} del repositorio: ${repository}`);
 
         // Preparar cabeceras de autenticación para GitHub
         const headers = {};
-        const githubToken = process.env.GITHUB_ACCESS_TOKEN;
+        const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN;
 
         if (!githubToken) {
-            throw new Error('GITHUB_ACCESS_TOKEN es requerido para descargar artefactos. Configura esta variable en tu archivo .env');
+            throw new Error('GITHUB_TOKEN es requerido para descargar artefactos. Configura esta variable en tu archivo .env');
         }
 
         headers['Authorization'] = `token ${githubToken}`;
-        headers['Accept'] = 'application/vnd.github.v3+json';
+        headers['Accept'] = 'application/vnd.github+json';
         console.log('Usando autenticación con GitHub token para descargar artefacto');
 
-        let downloadUrl = artifactUrl;
-
-        // Si la URL es de la API de GitHub (contiene /repos/ y /actions/artifacts/), 
-        // necesitamos obtener la URL de descarga real
-        if (artifactUrl.includes('api.github.com') && artifactUrl.includes('/actions/artifacts/')) {
-            console.log('Detectada URL de API de GitHub, obteniendo URL de descarga...');
-            
-            // Hacer petición a la API para obtener información del artefacto
-            const apiResponse = await fetch(artifactUrl, { headers });
-            if (!apiResponse.ok) {
-                if (apiResponse.status === 401 || apiResponse.status === 403) {
-                    throw new Error(`Error de autenticación al acceder a la API de GitHub: ${apiResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN tenga permisos para acceder a artefactos.`);
-                }
-                throw new Error(`Error al acceder a la API de GitHub: ${apiResponse.statusText}`);
+        // Construir URL de la API para obtener información del artefacto
+        const artifactApiUrl = `https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}`;
+        console.log(`Obteniendo información del artefacto desde: ${artifactApiUrl}`);
+        
+        // Obtener información del artefacto
+        const artifactResponse = await fetch(artifactApiUrl, { headers });
+        
+        if (!artifactResponse.ok) {
+            if (artifactResponse.status === 401 || artifactResponse.status === 403) {
+                throw new Error(`Error de autenticación al acceder a la API de GitHub: ${artifactResponse.statusText}. Verifica que GITHUB_TOKEN tenga permisos para acceder a artefactos.`);
             }
-
-            const artifactInfo = await apiResponse.json();
-            downloadUrl = artifactInfo.archive_download_url;
-            console.log(`URL de descarga obtenida: ${downloadUrl}`);
+            if (artifactResponse.status === 404) {
+                throw new Error(`Artefacto no encontrado (404). Verifica que el artifact_id ${artifactId} sea correcto y que el artefacto aún exista.`);
+            }
+            throw new Error(`Error al acceder a la API de GitHub: ${artifactResponse.statusText}`);
         }
 
-        // Descargar el artefacto usando la URL correcta
-        console.log(`Descargando artefacto desde: ${downloadUrl}`);
-        const response = await fetch(downloadUrl, { headers });
+        const artifactInfo = await artifactResponse.json();
+        console.log(`Artefacto encontrado: ${artifactInfo.name} (ID: ${artifactInfo.id})`);
+
+        // Obtener URL de descarga del artefacto
+        const downloadApiUrl = `https://api.github.com/repos/${repository}/actions/artifacts/${artifactId}/zip`;
+        console.log(`Descargando artefacto desde: ${downloadApiUrl}`);
+        
+        const downloadResponse = await fetch(downloadApiUrl, { 
+            headers,
+            redirect: 'manual' // GitHub devuelve un redirect con la URL temporal
+        });
+        
+        if (!downloadResponse.ok && downloadResponse.status !== 302) {
+            if (downloadResponse.status === 401 || downloadResponse.status === 403) {
+                throw new Error(`Error de autenticación al descargar artefacto: ${downloadResponse.statusText}. Verifica que GITHUB_TOKEN esté configurado correctamente.`);
+            }
+            throw new Error(`Error al descargar artefacto: ${downloadResponse.status} ${downloadResponse.statusText}`);
+        }
+
+        // Obtener la URL temporal de descarga del header Location
+        const downloadUrl = downloadResponse.headers.get('location');
+        if (!downloadUrl) {
+            throw new Error('No se pudo obtener la URL de descarga temporal del artefacto');
+        }
+
+        console.log('Descargando artefacto desde URL temporal...');
+        
+        // Descargar el artefacto usando la URL temporal
+        const response = await fetch(downloadUrl);
         
         if (!response.ok) {
-            if (response.status === 401 || response.status === 403) {
-                throw new Error(`Error de autenticación al descargar artefacto: ${response.statusText}. Verifica que GITHUB_ACCESS_TOKEN esté configurado correctamente.`);
-            }
-            if (response.status === 404) {
-                throw new Error(`Artefacto no encontrado (404). Verifica que la URL del artefacto sea correcta y que el artefacto aún exista.`);
-            }
-            throw new Error(`Error al descargar artefacto: ${response.status} ${response.statusText}`);
+            throw new Error(`Error al descargar artefacto desde URL temporal: ${response.status} ${response.statusText}`);
         }
 
         // Crear directorio temporal
@@ -273,7 +289,15 @@ async function deployBackend(environment, projectUrl) {
 // Ruta para despliegue de frontend
 app.post('/frontend', async (req, res) => {
     try {
-        const { environment, artifact_url, token } = req.body;
+        const { 
+            environment, 
+            artifact_name, 
+            artifact_id, 
+            repository, 
+            run_id, 
+            github_token_required, 
+            token 
+        } = req.body;
 
         // Validar token
         if (!validateToken(token)) {
@@ -281,13 +305,22 @@ app.post('/frontend', async (req, res) => {
         }
 
         // Validar parámetros requeridos
-        if (!environment || !artifact_url) {
-            return res.status(400).json({ error: 'Parámetros environment y artifact_url son requeridos' });
+        if (!environment || !artifact_id || !repository) {
+            return res.status(400).json({ 
+                error: 'Parámetros environment, artifact_id y repository son requeridos' 
+            });
         }
 
         // Validar ambiente
         if (!['tst', 'prd'].includes(environment)) {
             return res.status(400).json({ error: 'Environment debe ser "tst" o "prd"' });
+        }
+
+        // Validar que se requiere token de GitHub
+        if (github_token_required !== true) {
+            return res.status(400).json({ 
+                error: 'github_token_required debe ser true para este tipo de despliegue' 
+            });
         }
 
         // Obtener ruta de despliegue
@@ -301,13 +334,22 @@ app.post('/frontend', async (req, res) => {
             });
         }
 
-        // Descargar y extraer artefacto
-        await downloadAndExtractArtifact(artifact_url, deployPath);
+        console.log(`Iniciando despliegue de frontend para ambiente: ${environment}`);
+        console.log(`Artefacto: ${artifact_name} (ID: ${artifact_id})`);
+        console.log(`Repositorio: ${repository}`);
+        console.log(`Run ID: ${run_id}`);
+
+        // Descargar y extraer artefacto usando el nuevo formato
+        await downloadAndExtractArtifact(artifact_id, repository, deployPath);
 
         res.json({
             success: true,
             message: `Frontend desplegado exitosamente en ambiente ${environment}`,
-            path: deployPath
+            path: deployPath,
+            artifact_name: artifact_name,
+            artifact_id: artifact_id,
+            repository: repository,
+            run_id: run_id
         });
 
     } catch (error) {
