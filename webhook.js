@@ -72,10 +72,10 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
 
         // Preparar cabeceras de autenticación para GitHub
         const headers = {};
-        const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_ACCESS_TOKEN;
+        const githubToken = process.env.GITHUB_ACCESS_TOKEN;
 
         if (!githubToken) {
-            throw new Error('GITHUB_TOKEN es requerido para descargar artefactos. Configura esta variable en tu archivo .env');
+            throw new Error('GITHUB_ACCESS_TOKEN es requerido para descargar artefactos. Configura esta variable en tu archivo .env');
         }
 
         headers['Authorization'] = `token ${githubToken}`;
@@ -91,7 +91,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         
         if (!artifactResponse.ok) {
             if (artifactResponse.status === 401 || artifactResponse.status === 403) {
-                throw new Error(`Error de autenticación al acceder a la API de GitHub: ${artifactResponse.statusText}. Verifica que GITHUB_TOKEN tenga permisos para acceder a artefactos.`);
+                throw new Error(`Error de autenticación al acceder a la API de GitHub: ${artifactResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN tenga permisos para acceder a artefactos.`);
             }
             if (artifactResponse.status === 404) {
                 throw new Error(`Artefacto no encontrado (404). Verifica que el artifact_id ${artifactId} sea correcto y que el artefacto aún exista.`);
@@ -113,7 +113,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         
         if (!downloadResponse.ok && downloadResponse.status !== 302) {
             if (downloadResponse.status === 401 || downloadResponse.status === 403) {
-                throw new Error(`Error de autenticación al descargar artefacto: ${downloadResponse.statusText}. Verifica que GITHUB_TOKEN esté configurado correctamente.`);
+                throw new Error(`Error de autenticación al descargar artefacto: ${downloadResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN esté configurado correctamente.`);
             }
             throw new Error(`Error al descargar artefacto: ${downloadResponse.status} ${downloadResponse.statusText}`);
         }
