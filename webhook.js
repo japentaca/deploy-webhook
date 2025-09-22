@@ -146,12 +146,63 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         await fs.writeFile(tempFile, buffer);
 
         console.log(`Artefacto descargado, tamaño: ${buffer.length} bytes`);
+        console.log(`Archivo temporal guardado en: ${tempFile}`);
+
+        // Verificar que el archivo se guardó correctamente
+        const stats = await fs.stat(tempFile);
+        console.log(`Verificación del archivo: tamaño en disco ${stats.size} bytes`);
+
+        if (stats.size === 0) {
+            throw new Error('El archivo descargado está vacío');
+        }
+
+        // Verificar que es un archivo ZIP válido leyendo los primeros bytes
+        const fileHeader = await fs.readFile(tempFile, { start: 0, end: 3 });
+        const zipSignature = fileHeader.toString('hex');
+        console.log(`Signatura del archivo: ${zipSignature}`);
+        
+        // Verificar signatura ZIP (PK\x03\x04 = 504b0304 en hex)
+        if (!zipSignature.startsWith('504b')) {
+            console.error('El archivo descargado no parece ser un ZIP válido');
+            // Intentar mostrar el contenido como texto para diagnóstico
+            const textContent = await fs.readFile(tempFile, 'utf8');
+            console.error('Contenido del archivo (primeros 500 caracteres):', textContent.substring(0, 500));
+            throw new Error('El archivo descargado no es un ZIP válido');
+        }
 
         // Crear directorio de destino si no existe
         await fs.mkdir(destinationPath, { recursive: true });
+        console.log(`Directorio de destino preparado: ${destinationPath}`);
 
-        // Extraer el archivo (asumiendo que es un ZIP)
-        await execAsync(`unzip -o "${tempFile}" -d "${destinationPath}"`);
+        // Extraer el archivo con mejor manejo de errores
+        console.log('Iniciando extracción del archivo ZIP...');
+        try {
+            const { stdout, stderr } = await execAsync(`unzip -o "${tempFile}" -d "${destinationPath}"`);
+            console.log('Salida de unzip:', stdout);
+            if (stderr) {
+                console.warn('Advertencias de unzip:', stderr);
+            }
+        } catch (unzipError) {
+            console.error('Error durante la extracción:', unzipError);
+            
+            // Intentar listar el contenido del ZIP para diagnóstico
+            try {
+                const { stdout: listOutput } = await execAsync(`unzip -l "${tempFile}"`);
+                console.log('Contenido del archivo ZIP:', listOutput);
+            } catch (listError) {
+                console.error('No se pudo listar el contenido del ZIP:', listError.message);
+            }
+            
+            throw new Error(`Error al extraer el archivo ZIP: ${unzipError.message}`);
+        }
+
+        // Verificar que se extrajeron archivos
+        const extractedFiles = await fs.readdir(destinationPath);
+        console.log(`Archivos extraídos (${extractedFiles.length}):`, extractedFiles);
+
+        if (extractedFiles.length === 0) {
+            throw new Error('No se extrajeron archivos del ZIP');
+        }
 
         // Limpiar archivo temporal
         await fs.unlink(tempFile);
