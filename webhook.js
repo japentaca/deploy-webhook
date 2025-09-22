@@ -68,27 +68,53 @@ function validateToken(token) {
 // Función para descargar y extraer artefactos
 async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
     try {
-        console.log(`Descargando artefacto desde: ${artifactUrl}`);
+        console.log(`Procesando descarga de artefacto desde: ${artifactUrl}`);
 
         // Preparar cabeceras de autenticación para GitHub
         const headers = {};
         const githubToken = process.env.GITHUB_ACCESS_TOKEN;
 
-        if (githubToken) {
-            headers['Authorization'] = `token ${githubToken}`;
-            headers['Accept'] = 'application/vnd.github.v3+json';
-            console.log('Usando autenticación con GitHub token para descargar artefacto');
-        } else {
-            console.log('No se encontró GITHUB_ACCESS_TOKEN, intentando descarga sin autenticación');
+        if (!githubToken) {
+            throw new Error('GITHUB_ACCESS_TOKEN es requerido para descargar artefactos. Configura esta variable en tu archivo .env');
         }
 
-        // Descargar el artefacto
-        const response = await fetch(artifactUrl, { headers });
+        headers['Authorization'] = `token ${githubToken}`;
+        headers['Accept'] = 'application/vnd.github.v3+json';
+        console.log('Usando autenticación con GitHub token para descargar artefacto');
+
+        let downloadUrl = artifactUrl;
+
+        // Si la URL es de la API de GitHub (contiene /repos/ y /actions/artifacts/), 
+        // necesitamos obtener la URL de descarga real
+        if (artifactUrl.includes('api.github.com') && artifactUrl.includes('/actions/artifacts/')) {
+            console.log('Detectada URL de API de GitHub, obteniendo URL de descarga...');
+            
+            // Hacer petición a la API para obtener información del artefacto
+            const apiResponse = await fetch(artifactUrl, { headers });
+            if (!apiResponse.ok) {
+                if (apiResponse.status === 401 || apiResponse.status === 403) {
+                    throw new Error(`Error de autenticación al acceder a la API de GitHub: ${apiResponse.statusText}. Verifica que GITHUB_ACCESS_TOKEN tenga permisos para acceder a artefactos.`);
+                }
+                throw new Error(`Error al acceder a la API de GitHub: ${apiResponse.statusText}`);
+            }
+
+            const artifactInfo = await apiResponse.json();
+            downloadUrl = artifactInfo.archive_download_url;
+            console.log(`URL de descarga obtenida: ${downloadUrl}`);
+        }
+
+        // Descargar el artefacto usando la URL correcta
+        console.log(`Descargando artefacto desde: ${downloadUrl}`);
+        const response = await fetch(downloadUrl, { headers });
+        
         if (!response.ok) {
             if (response.status === 401 || response.status === 403) {
-                throw new Error(`Error de autenticación al descargar artefacto: ${response.statusText}. Verifica que GITHUB_ACCESS_TOKEN esté configurado correctamente para repositorios privados.`);
+                throw new Error(`Error de autenticación al descargar artefacto: ${response.statusText}. Verifica que GITHUB_ACCESS_TOKEN esté configurado correctamente.`);
             }
-            throw new Error(`Error al descargar artefacto: ${response.statusText}`);
+            if (response.status === 404) {
+                throw new Error(`Artefacto no encontrado (404). Verifica que la URL del artefacto sea correcta y que el artefacto aún exista.`);
+            }
+            throw new Error(`Error al descargar artefacto: ${response.status} ${response.statusText}`);
         }
 
         // Crear directorio temporal
@@ -100,6 +126,8 @@ async function downloadAndExtractArtifact(artifactUrl, destinationPath) {
         // Guardar el archivo
         const buffer = await response.buffer();
         await fs.writeFile(tempFile, buffer);
+
+        console.log(`Artefacto descargado, tamaño: ${buffer.length} bytes`);
 
         // Crear directorio de destino si no existe
         await fs.mkdir(destinationPath, { recursive: true });

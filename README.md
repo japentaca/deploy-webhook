@@ -92,9 +92,12 @@ Configurar los siguientes secrets en el repositorio de GitHub:
 
 **Acciones del Webhook:**
 1. Valida el token secreto
-2. Descarga el artefacto temporalmente
-3. Extrae y mueve los archivos a la carpeta de destino según el entorno
-4. Limpia archivos temporales
+2. Procesa la URL del artefacto (si es una URL de API de GitHub, obtiene la URL de descarga real)
+3. Descarga el artefacto usando autenticación con GitHub token
+4. Extrae y mueve los archivos a la carpeta de destino según el entorno
+5. Limpia archivos temporales
+
+**Nota importante sobre artefactos:** El webhook maneja automáticamente las URLs de la API de GitHub (`api.github.com/repos/.../actions/artifacts/...`) obteniendo la URL de descarga real (`archive_download_url`) antes de proceder con la descarga.
 
 ### Despliegue de Backend
 
@@ -187,7 +190,11 @@ pm2 status
 2. **Error de token inválido:**
    - Verificar que `DEPLOY_SECRET_TOKEN` coincida en el `.env` y en los secrets de GitHub
 
-3. **Error al descargar artefactos:**
+3. **Error al descargar artefactos (404 Not Found):**
+   - **Causa más común:** La URL del artefacto requiere autenticación con GitHub token
+   - **Solución:** Verificar que `GITHUB_ACCESS_TOKEN` esté configurado en el archivo `.env`
+   - **Verificar permisos:** El token debe tener permisos de `actions:read` para acceder a artefactos
+   - **URL correcta:** El webhook maneja automáticamente URLs de API de GitHub y URLs directas
    - Verificar conectividad a internet del servidor
    - Comprobar permisos de escritura en las carpetas de destino
 
