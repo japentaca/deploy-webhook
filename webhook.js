@@ -16,6 +16,41 @@ const __dirname = path.dirname(__filename);
 // Cargar variables de entorno
 dotenv.config();
 
+// Función para validar variables de entorno requeridas
+function validateEnvironmentVariables() {
+    const requiredVars = [
+        'DEPLOY_SECRET_TOKEN',
+        'DEPLOY_SERVER_PORT',
+        'GITHUB_ACCESS_TOKEN',
+        'DEPLOY_BACKEND_PATH_TST',
+        'DEPLOY_BACKEND_PATH_PRD',
+        'DEPLOY_FRONTEND_PATH_TST',
+        'DEPLOY_FRONTEND_PATH_PRD'
+    ];
+
+    const missingVars = [];
+
+    for (const varName of requiredVars) {
+        if (!process.env[varName] || process.env[varName].trim() === '') {
+            missingVars.push(varName);
+        }
+    }
+
+    if (missingVars.length > 0) {
+        console.error('Error: Las siguientes variables de entorno son requeridas pero no están definidas:');
+        missingVars.forEach(varName => {
+            console.error(`  - ${varName}`);
+        });
+        console.error('\nPor favor, define estas variables en tu archivo .env antes de ejecutar el script.');
+        process.exit(1);
+    }
+
+    console.log('Validación de variables de entorno completada exitosamente.');
+}
+
+// Validar variables de entorno al inicio
+validateEnvironmentVariables();
+
 const execAsync = promisify(exec);
 const app = express();
 
