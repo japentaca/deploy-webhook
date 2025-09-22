@@ -16,58 +16,7 @@ const __dirname = path.dirname(__filename);
 // Cargar variables de entorno
 dotenv.config();
 
-// Función para verificar dependencias del sistema en Debian
-async function checkSystemDependencies() {
-    // Permitir omitir la verificación si se establece la variable de entorno
-    if (process.env.SKIP_DEPENDENCY_CHECK === 'true') {
-        console.log('⚠️  Verificación de dependencias omitida (SKIP_DEPENDENCY_CHECK=true)');
-        return;
-    }
 
-    const requiredCommands = ['unzip', 'git', 'npm'];
-    const missingCommands = [];
-
-    console.log('Verificando dependencias del sistema...');
-
-    for (const command of requiredCommands) {
-        try {
-            // Usar 'command -v' que es más portable y confiable que 'which'
-            const result = await execAsync(`command -v ${command}`);
-            if (result.stdout.trim()) {
-                console.log(`✓ ${command} está disponible en: ${result.stdout.trim()}`);
-            } else {
-                console.log(`✗ ${command} no encontrado`);
-                missingCommands.push(command);
-            }
-        } catch (error) {
-            console.log(`✗ ${command} no encontrado (error: ${error.message})`);
-            missingCommands.push(command);
-        }
-    }
-
-    if (missingCommands.length > 0) {
-        console.error('\nError: Los siguientes comandos son requeridos pero no están instalados:');
-        missingCommands.forEach(command => {
-            console.error(`  - ${command}`);
-        });
-        console.error('\nPara instalar las dependencias faltantes en Debian/Ubuntu, ejecuta:');
-        
-        if (missingCommands.includes('unzip')) {
-            console.error('  sudo apt-get install unzip');
-        }
-        if (missingCommands.includes('git')) {
-            console.error('  sudo apt-get install git');
-        }
-        if (missingCommands.includes('npm')) {
-            console.error('  sudo apt-get install nodejs npm');
-        }
-        
-        console.error('\nDespués de instalar las dependencias, reinicia el script.');
-        process.exit(1);
-    }
-
-    console.log('✓ Verificación de dependencias del sistema completada exitosamente.');
-}
 
 // Función para validar variables de entorno requeridas
 function validateEnvironmentVariables() {
@@ -101,11 +50,8 @@ function validateEnvironmentVariables() {
     console.log('Validación de variables de entorno completada exitosamente.');
 }
 
-// Verificar dependencias del sistema y validar variables de entorno al inicio
-(async () => {
-    await checkSystemDependencies();
-    validateEnvironmentVariables();
-})();
+// Validar variables de entorno al inicio
+validateEnvironmentVariables();
 
 const execAsync = promisify(exec);
 const app = express();
