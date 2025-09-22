@@ -164,9 +164,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         // Verificar signatura ZIP (PK\x03\x04 = 504b0304 en hex)
         if (!zipSignature.startsWith('504b')) {
             console.error('El archivo descargado no parece ser un ZIP válido');
-            // Intentar mostrar el contenido como texto para diagnóstico
-            const textContent = await fs.readFile(tempFile, 'utf8');
-            console.error('Contenido del archivo (primeros 500 caracteres):', textContent.substring(0, 500));
+            console.error('Signatura encontrada:', zipSignature);
             throw new Error('El archivo descargado no es un ZIP válido');
         }
 
