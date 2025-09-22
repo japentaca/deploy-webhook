@@ -18,20 +18,35 @@ dotenv.config();
 
 // Función para verificar dependencias del sistema en Debian
 async function checkSystemDependencies() {
+    // Permitir omitir la verificación si se establece la variable de entorno
+    if (process.env.SKIP_DEPENDENCY_CHECK === 'true') {
+        console.log('⚠️  Verificación de dependencias omitida (SKIP_DEPENDENCY_CHECK=true)');
+        return;
+    }
+
     const requiredCommands = ['unzip', 'git', 'npm'];
     const missingCommands = [];
 
+    console.log('Verificando dependencias del sistema...');
+
     for (const command of requiredCommands) {
         try {
-            await execAsync(`which ${command}`);
-            console.log(`✓ ${command} está disponible`);
+            // Usar 'command -v' que es más portable y confiable que 'which'
+            const result = await execAsync(`command -v ${command}`);
+            if (result.stdout.trim()) {
+                console.log(`✓ ${command} está disponible en: ${result.stdout.trim()}`);
+            } else {
+                console.log(`✗ ${command} no encontrado`);
+                missingCommands.push(command);
+            }
         } catch (error) {
+            console.log(`✗ ${command} no encontrado (error: ${error.message})`);
             missingCommands.push(command);
         }
     }
 
     if (missingCommands.length > 0) {
-        console.error('Error: Los siguientes comandos son requeridos pero no están instalados:');
+        console.error('\nError: Los siguientes comandos son requeridos pero no están instalados:');
         missingCommands.forEach(command => {
             console.error(`  - ${command}`);
         });
@@ -47,10 +62,11 @@ async function checkSystemDependencies() {
             console.error('  sudo apt-get install nodejs npm');
         }
         
+        console.error('\nDespués de instalar las dependencias, reinicia el script.');
         process.exit(1);
     }
 
-    console.log('Verificación de dependencias del sistema completada exitosamente.');
+    console.log('✓ Verificación de dependencias del sistema completada exitosamente.');
 }
 
 // Función para validar variables de entorno requeridas
