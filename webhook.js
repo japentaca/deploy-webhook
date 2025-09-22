@@ -197,7 +197,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
 
         // Verificar que se extrajeron archivos
         const extractedFiles = await fs.readdir(destinationPath);
-        console.log(`Archivos extraídos (${extractedFiles.length}):`, extractedFiles);
+        console.log(`Archivos extraídos (${extractedFiles.length}):`, extractedFiles.map(f => f.path || f.name || f));
 
         if (extractedFiles.length === 0) {
             throw new Error('No se extrajeron archivos del ZIP');
@@ -210,7 +210,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         console.log(`Artefacto extraído exitosamente en: ${destinationPath}`);
         return true;
     } catch (error) {
-        console.error('Error al descargar y extraer artefacto:', error);
+        console.error('Error al descargar y extraer artefacto:', error.message);
         throw error;
     }
 }
@@ -301,7 +301,7 @@ async function deployBackend(environment, projectUrl) {
             const pm2Result = await new Promise((resolve, reject) => {
                 pm2.connect((err) => {
                     if (err) {
-                        console.error('Error conectando a PM2:', err);
+                        console.error('Error conectando a PM2:', err.message);
                         reject(err);
                         return;
                     }
@@ -310,7 +310,7 @@ async function deployBackend(environment, projectUrl) {
                         pm2.disconnect();
 
                         if (err) {
-                            console.error(`Error reiniciando proceso ${processName}:`, err);
+                            console.error(`Error reiniciando proceso ${processName}:`, err.message);
                             reject(err);
                         } else {
                             console.log(`Proceso ${processName} reiniciado exitosamente`);
@@ -333,7 +333,7 @@ async function deployBackend(environment, projectUrl) {
         }
 
     } catch (error) {
-        console.error('Error en despliegue de backend:', error);
+        console.error('Error en despliegue de backend:', error.message);
         throw error;
     }
 }
@@ -405,7 +405,7 @@ app.post('/frontend', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error en despliegue de frontend:', error);
+        console.error('Error en despliegue de frontend:', error.message);
         res.status(500).json({
             error: 'Error interno del servidor',
             details: error.message
@@ -442,7 +442,7 @@ app.post('/backend', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error en despliegue de backend:', error);
+        console.error('Error en despliegue de backend:', error.message);
         res.status(500).json({
             error: 'Error interno del servidor',
             details: error.message
@@ -470,9 +470,9 @@ app.listen(PORT, () => {
 
 // Manejo de errores no capturados
 process.on('uncaughtException', (error) => {
-    console.error('Error no capturado:', error);
+    console.error('Error no capturado:', error.message);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('Promesa rechazada no manejada:', reason);
+    console.error('Promesa rechazada no manejada:', reason?.message || reason);
 });
