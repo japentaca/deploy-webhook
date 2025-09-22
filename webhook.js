@@ -176,19 +176,20 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
         console.log('Iniciando extracción del archivo ZIP...');
         try {
             const { stdout, stderr } = await execAsync(`unzip -o "${tempFile}" -d "${destinationPath}"`);
-            console.log('Salida de unzip:', stdout);
+            console.log('Extracción completada exitosamente');
             if (stderr) {
-                console.warn('Advertencias de unzip:', stderr);
+                console.warn('Advertencias durante la extracción');
             }
         } catch (unzipError) {
-            console.error('Error durante la extracción:', unzipError);
+            console.error('Error durante la extracción:', unzipError.message);
             
-            // Intentar listar el contenido del ZIP para diagnóstico
+            // Intentar obtener información básica del ZIP para diagnóstico
             try {
                 const { stdout: listOutput } = await execAsync(`unzip -l "${tempFile}"`);
-                console.log('Contenido del archivo ZIP:', listOutput);
+                const fileCount = (listOutput.match(/\n/g) || []).length - 3; // Aproximar número de archivos
+                console.log(`El archivo ZIP contiene aproximadamente ${fileCount} archivos`);
             } catch (listError) {
-                console.error('No se pudo listar el contenido del ZIP:', listError.message);
+                console.error('No se pudo obtener información del ZIP');
             }
             
             throw new Error(`Error al extraer el archivo ZIP: ${unzipError.message}`);
