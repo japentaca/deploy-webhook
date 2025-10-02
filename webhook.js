@@ -216,7 +216,7 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
 }
 
 // Función para clonar repositorio y configurar backend
-async function deployBackend(environment, projectUrl) {
+async function deployBackend(environment, projectUrl, branch = 'main') {
     try {
         const deployPath = environment === 'tst'
             ? process.env.DEPLOY_BACKEND_PATH_TST
@@ -228,6 +228,7 @@ async function deployBackend(environment, projectUrl) {
 
         console.log(`Desplegando backend en ambiente: ${environment}`);
         console.log(`Ruta de despliegue: ${deployPath}`);
+        console.log(`Rama a desplegar: ${branch}`);
 
         // Crear directorio temporal para clonar el monorepo
         const tempDir = path.join(os.tmpdir(), `deploy-${Date.now()}`);
@@ -259,9 +260,34 @@ async function deployBackend(environment, projectUrl) {
                 console.log('Usando GitHub token para clonar repositorio privado');
             }
 
-            // Clonar monorepo en directorio temporal
+            // Clonar monorepo en directorio temporal con la rama específica
             console.log(`Clonando monorepo en directorio temporal: ${tempDir}`);
-            await execAsync(`git clone ${cloneUrl} "${tempDir}"`);
+            console.log(`Clonando rama: ${branch}`);
+            await execAsync(`git clone --branch ${branch} --single-branch ${cloneUrl} "${tempDir}"`);
+
+            // Verificar la rama clonada
+            const { stdout: currentBranch } = await execAsync(`git -C "${tempDir}" rev-parse --abbrev-ref HEAD`);
+            const actualBranch = currentBranch.trim();
+            console.log(`Rama clonada confirmada: ${actualBranch}`);
+            
+            if (actualBranch !== branch) {
+                throw new Error(`Error: Se esperaba clonar la rama '${branch}' pero se clonó '${actualBranch}'`);
+            }
+
+            // Obtener información del commit actual
+            const { stdout: commitInfo } = await execAsync(`git -C "${tempDir}" log -1 --pretty=format:"%H %s %an %ad" --date=short`);
+            console.log(`Commit desplegado: ${commitInfo.trim()}`);
+
+            // Obtener hash del commit para el log
+            const { stdout: commitHash } = await execAsync(`git -C "${tempDir}" rev-parse HEAD`);
+            const deploymentInfo = {
+                timestamp: new Date().toISOString(),
+                environment: environment,
+                branch: actualBranch,
+                commit: commitHash.trim(),
+                commitMessage: commitInfo.trim(),
+                projectUrl: projectUrl
+            };
 
             // Verificar que existe la carpeta backend en el monorepo
             const backendSourcePath = path.join(tempDir, 'backend');
@@ -294,6 +320,23 @@ async function deployBackend(environment, projectUrl) {
             // Instalar dependencias
             console.log('Instalando dependencias...');
             await execAsync('npm ci');
+
+            // Crear archivo de log del despliegue
+            const deployLogPath = path.join(deployPath, 'deployment.log');
+            const logEntry = `${deploymentInfo.timestamp} - Despliegue exitoso\n` +
+                           `Ambiente: ${deploymentInfo.environment}\n` +
+                           `Rama: ${deploymentInfo.branch}\n` +
+                           `Commit: ${deploymentInfo.commit}\n` +
+                           `Mensaje: ${deploymentInfo.commitMessage}\n` +
+                           `URL: ${deploymentInfo.projectUrl}\n` +
+                           `---\n`;
+            
+            try {
+                await fs.appendFile(deployLogPath, logEntry);
+                console.log(`Log de despliegue actualizado: ${deployLogPath}`);
+            } catch (error) {
+                console.warn('Error escribiendo log de despliegue:', error.message);
+            }
 
             // Reiniciar proceso con PM2
             const processName = environment === 'tst' ? 'tst_backend' : 'prd_backend';
@@ -416,7 +459,7 @@ app.post('/frontend', async (req, res) => {
 // Ruta para despliegue de backend
 app.post('/backend', async (req, res) => {
     try {
-        const { environment, project_url, token } = req.body;
+        const { environment, project_url, token, branch } = req.body;
 
         // Validar token
         if (!validateToken(token)) {
@@ -433,12 +476,25 @@ app.post('/backend', async (req, res) => {
             return res.status(400).json({ error: 'Environment debe ser "tst" o "prd"' });
         }
 
+        // Validar rama si se proporciona
+        const deployBranch = branch || 'main';
+        if (branch && typeof branch !== 'string') {
+            return res.status(400).json({ error: 'El parámetro branch debe ser una cadena de texto' });
+        }
+
+        console.log(`Iniciando despliegue de backend:`);
+        console.log(`- Ambiente: ${environment}`);
+        console.log(`- URL del proyecto: ${project_url}`);
+        console.log(`- Rama: ${deployBranch}`);
+
         // Desplegar backend
-        await deployBackend(environment, project_url);
+        await deployBackend(environment, project_url, deployBranch);
 
         res.json({
             success: true,
-            message: `Backend desplegado exitosamente en ambiente ${environment}`
+            message: `Backend desplegado exitosamente en ambiente ${environment}`,
+            branch: deployBranch,
+            environment: environment
         });
 
     } catch (error) {
