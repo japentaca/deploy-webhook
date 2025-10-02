@@ -216,8 +216,13 @@ async function downloadAndExtractArtifact(artifactId, repository, destinationPat
 }
 
 // Función para clonar repositorio y configurar backend
-async function deployBackend(environment, projectUrl, branch = 'main') {
+async function deployBackend(environment, projectUrl, branch) {
     try {
+        // Validar que la rama esté especificada
+        if (!branch || typeof branch !== 'string' || branch.trim() === '') {
+            throw new Error('La rama debe estar especificada y no puede estar vacía');
+        }
+
         const deployPath = environment === 'tst'
             ? process.env.DEPLOY_BACKEND_PATH_TST
             : process.env.DEPLOY_BACKEND_PATH_PRD;
@@ -467,8 +472,15 @@ app.post('/backend', async (req, res) => {
         }
 
         // Validar parámetros requeridos
-        if (!environment || !project_url) {
-            return res.status(400).json({ error: 'Parámetros environment y project_url son requeridos' });
+        if (!environment || !project_url || !branch) {
+            return res.status(400).json({ 
+                error: 'Parámetros environment, project_url y branch son requeridos',
+                missing: {
+                    environment: !environment,
+                    project_url: !project_url,
+                    branch: !branch
+                }
+            });
         }
 
         // Validar ambiente
@@ -476,11 +488,12 @@ app.post('/backend', async (req, res) => {
             return res.status(400).json({ error: 'Environment debe ser "tst" o "prd"' });
         }
 
-        // Validar rama si se proporciona
-        const deployBranch = branch || 'main';
-        if (branch && typeof branch !== 'string') {
-            return res.status(400).json({ error: 'El parámetro branch debe ser una cadena de texto' });
+        // Validar rama
+        if (typeof branch !== 'string' || branch.trim() === '') {
+            return res.status(400).json({ error: 'El parámetro branch debe ser una cadena de texto no vacía' });
         }
+
+        const deployBranch = branch.trim();
 
         console.log(`Iniciando despliegue de backend:`);
         console.log(`- Ambiente: ${environment}`);
